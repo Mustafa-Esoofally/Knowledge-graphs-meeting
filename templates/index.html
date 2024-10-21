@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal Knowledge Management</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        #graph {
+            border: 1px solid #ccc;
+            margin-top: 20px;
+        }
+        .node {
+            stroke: #fff;
+            stroke-width: 2px;
+        }
+        .link {
+            stroke: #999;
+            stroke-opacity: 0.6;
+        }
+        text {
+            font-family: Arial, sans-serif;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Personal Knowledge Management</h1>
+    <form id="notes-form">
+        <textarea id="notes" rows="10" cols="50" placeholder="Enter your notes here..."></textarea>
+        <br>
+        <button type="submit">Generate Knowledge Graph</button>
+    </form>
+    <div id="graph"></div>
+
+    <script>
+        document.getElementById('notes-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const notes = document.getElementById('notes').value;
+            const response = await fetch('/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({notes: notes})
+            });
+            const graph = await response.json();
+            visualizeGraph(graph);
+        });
+
+        function visualizeGraph(graph) {
+            const width = 800;
+            const height = 600;
+
+            d3.select("#graph").selectAll("*").remove();
+
+            const svg = d3.select("#graph")
+                .append("svg")
+                .attr("width", width)
+                .attr("height", height)
+                .call(d3.zoom().on("zoom", (event) => {
+                    g.attr("transform", event.transform);
+                }));
+
+            const g = svg.append("g");
+
+            const simulation = d3.forceSimulation(graph.nodes)
+                .force("link", d3.forceLink(graph.edges).id(d => d.id).distance(100))
+                .force("charge", d3.forceManyBody().strength(-300))
+                .force("center", d3.forceCenter(width / 2, height / 2))
+                .force("collide", d3.forceCollide().radius(50));
+
+            const link = g.append("g")
+                .selectAll("line")
+                .data(graph.edges)
+                .enter().append("line")
+                .attr("stroke", "#999")
+                .attr("stroke-opacity", 0.6)
+                .attr("stroke-width", 2);
+
+            const node = g.append("g")
+                .selectAll("circle")
+                .data(graph.nodes)
+                .enter().append("circle")
+                .attr("r", 20)
+                .attr("fill", d => color(d.id))
+                .call(d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended));
+
+            const text = g.append("g")
+                .selectAll("text")
+                .data(graph.nodes)
+                .enter().append("text")
+                .text(d => d.label)
+                .attr("font-size", 12)
+                .attr("dx", 25)
+                .attr("dy", 4);
+
+            node.append("title")
+                .text(d => d.label);
+
+            simulation.on("tick", () => {
+                link
+                    .attr("x1", d => d.source.x)
+                    .attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x)
+                    .attr("y2", d => d.target.y);
+
+                node
+                    .attr("cx", d => d.x)
+                    .attr("cy", d => d.y);
+
+                text
+                    .attr("x", d => d.x)
+                    .attr("y", d => d.y);
+            });
+
+            function dragstarted(event, d) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+            }
+
+            function dragged(event, d) {
+                d.fx = event.x;
+                d.fy = event.y;
+            }
+
+            function dragended(event, d) {
+                if (!event.active) simulation.alphaTarget(0);
+                d.fx = null;
+                d.fy = null;
+            }
+        }
+
+        // Color scale for nodes
+        const color = d3.scaleOrdinal(d3.schemeCategory10);
+    </script>
+</body>
+</html>
